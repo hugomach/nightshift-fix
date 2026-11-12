@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nightshift-fix</title>
+<meta name="description" content="Oprava macOS chyby, kdy Night Shift zmizí po odpojení monitoru nebo vypnutí obrazovky.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fbf6ee; --surface:#fff; --ink:#2a1f14; --muted:#7a6a58; --line:#ecdfcc;
+  --amber:#e8892b; --amber-soft:#fdeedb; --blue:#3b6ef5; --code-bg:#1d1611; --code-ink:#f6e7d2;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#15100b; --surface:#1e1711; --ink:#f4e8d8; --muted:#b09c86; --line:#33281d;
+         --amber:#f2a04b; --amber-soft:#2c1f12; --blue:#7c9cff; --code-bg:#0e0a07; --code-ink:#f6e7d2; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 Inter,system-ui,sans-serif}
+a{color:var(--amber)}
+.wrap{max-width:820px;margin:0 auto;padding:0 20px}
+header{padding:72px 0 40px;text-align:center}
+.badge{display:inline-block;font-size:13px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:99px;padding:4px 12px;margin-bottom:18px}
+h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:clamp(36px,7vw,58px);line-height:1.08;margin:0 0 16px;letter-spacing:-.02em}
+h1 em{font-style:normal;background:linear-gradient(90deg,var(--blue),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:19px;color:var(--muted);max-width:600px;margin:0 auto 28px}
+.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--ink);background:var(--surface)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#fff}
+.screens{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;margin:48px 0 8px}
+.screen{border-radius:14px;aspect-ratio:16/10;border:6px solid #2a1f14;position:relative;overflow:hidden}
+.screen span{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:12px;font-weight:600;color:#2a1f14;opacity:.75}
+.s-warm{background:linear-gradient(160deg,#ffd9a8,#f7b974)}
+.s-cold{background:linear-gradient(160deg,#e8f0ff,#b9cdfa)}
+.arrow{font-size:28px;color:var(--muted)}
+section{padding:36px 0;border-top:1px solid var(--line)}
+h2{font-family:Fraunces,Georgia,serif;font-size:28px;margin:0 0 14px;letter-spacing:-.01em}
+h3{font-size:16px;margin:22px 0 8px}
+p{margin:0 0 14px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:18px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.step b{display:block;color:var(--amber);font-size:13px;margin-bottom:4px}
+pre{background:var(--code-bg);color:var(--code-ink);border-radius:12px;padding:16px 18px;overflow-x:auto;font:14px/1.6 "JetBrains Mono",ui-monospace,monospace;margin:0 0 16px;position:relative}
+code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em}
+p code,li code,td code{background:var(--amber-soft);padding:1px 6px;border-radius:5px}
+.copy{position:absolute;top:10px;right:10px;font:12px Inter,sans-serif;background:#ffffff1a;color:var(--code-ink);border:0;border-radius:6px;padding:4px 9px;cursor:pointer}
+.copy:hover{background:#ffffff33}
+.note{background:var(--amber-soft);border-radius:12px;padding:14px 18px;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{width:42%;padding-right:12px}
+footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;border-top:1px solid var(--line)}
+@media (max-width:560px){.screens{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="badge">macOS · LaunchAgent · ~70 řádků</div>
+  <h1>Night Shift, který <em>nezmizí</em></h1>
+  <p class="lead">Odpojíš monitor nebo se vypne obrazovka a Night Shift je pryč. V nastavení svítí „zapnuto“, ale obrazovka je zase modrá. <b>nightshift-fix</b> filtr automaticky vrátí.</p>
+  <div class="btns">
+    <a class="btn primary" href="#instalace">Instalace</a>
+    <a class="btn" href="https://github.com/hugomach/nightshift-fix">GitHub</a>
+    <a class="btn" href="#odinstalace">Odinstalace</a>
+  </div>
+  <div class="screens" aria-hidden="true">
+    <div class="screen s-warm"><span>před odpojením</span></div>
+    <div class="arrow">→</div>
+    <div class="screen s-cold"><span>po připojení (chyba)</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>Proč se to děje</h2>
+  <p>Při každé změně konfigurace displejů (odpojení, připojení, uspání obrazovky, probuzení Macu) macOS resetuje barevné gamma tabulky. Služba <code>CoreBrightness</code>, která Night Shift řídí, je pak někdy nepoužije znovu. Stav „zapnuto“ zůstane, ale filtr zmizí. Proto chybu obvykle spraví ruční vypnutí a zapnutí.</p>
+</section>
+
+<section>
+  <h2>Jak to funguje</h2>
+  <div class="steps">
+    <div class="step"><b>1 · Poslouchá</b>změny displejů a uspání nebo probuzení obrazovky.</div>
+    <div class="step"><b>2 · Pamatuje si</b>jestli byl Night Shift zapnutý ještě <i>před</i> změnou.</div>
+    <div class="step"><b>3 · Počká 2 s</b>než se displeje usadí.</div>
+    <div class="step"><b>4 · Obnoví</b>Night Shift rychlým vypnutím a zapnutím, ale jen když byl předtím zapnutý.</div>
+  </div>
+  <p style="margin-top:18px">Neupravuje plán, intenzitu ani jiná nastavení. Používá stejnou systémovou třídu <code>CBBlueLightClient</code> jako Ovládací centrum.</p>
+</section>
+
+<section id="instalace">
+  <h2>Instalace</h2>
+  <p>Potřebuješ Xcode Command Line Tools (<code>xcode-select --install</code>).</p>
+<pre><button class="copy">Kopírovat</button>git clone https://github.com/hugomach/nightshift-fix.git
+cd nightshift-fix
+./install.sh</pre>
+  <p>Skript zkompiluje helper do <code>~/.local/nightshift-fix/</code>, zaregistruje LaunchAgent a hned ho spustí. Pak se spouští automaticky po každém přihlášení.</p>
+  <h3>Ověření</h3>
+<pre><button class="copy">Kopírovat</button>launchctl list | grep nightshift-fix          # PID = běží
+log stream --predicate 'process == "nsfix"'   # odpoj/připoj monitor</pre>
+</section>
+
+<section id="odinstalace">
+  <h2>Odinstalace</h2>
+  <p>Ze složky repozitáře:</p>
+<pre><button class="copy">Kopírovat</button>./uninstall.sh</pre>
+  <p>Nebo ručně, bez repozitáře:</p>
+<pre><button class="copy">Kopírovat</button>launchctl bootout gui/$(id -u)/com.user.nightshift-fix
+rm ~/Library/LaunchAgents/com.user.nightshift-fix.plist
+rm -rf ~/.local/nightshift-fix</pre>
+  <p class="note">V systému po tom nic nezůstane a nastavení Night Shiftu se nezmění.</p>
+</section>
+
+<section>
+  <h2>Co se kam instaluje</h2>
+  <table>
+    <tr><td><code>~/.local/nightshift-fix/nsfix</code></td><td>zkompilovaný helper</td></tr>
+    <tr><td><code>~/.local/nightshift-fix/nsfix.m</code></td><td>kopie zdrojáku</td></tr>
+    <tr><td><code>~/Library/LaunchAgents/com.user.nightshift-fix.plist</code></td><td>automatické spuštění po přihlášení</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Řešení problémů</h2>
+  <h3>Filtr se pořád ztrácí</h3>
+  <p>Zkontroluj, že helper běží. Pokud se monitor probouzí pomalu, zvyš v <code>src/nsfix.m</code> prodlevu <code>2 * NSEC_PER_SEC</code> a spusť znovu <code>./install.sh</code>.</p>
+  <h3>Obrazovka krátce problikne</h3>
+  <p>To je záměr: právě rychlé vypnutí a zapnutí filtr obnoví.</p>
+  <h3>Po aktualizaci macOS to přestalo fungovat</h3>
+  <p><code>CBBlueLightClient</code> je privátní API Applu. Odinstaluj helper a založ issue.</p>
+</section>
+
+<footer>MIT licence · <a href="https://github.com/hugomach/nightshift-fix">zdrojový kód na GitHubu</a></footer>
+</div>
+<script>
+document.querySelectorAll('.copy').forEach(b=>b.addEventListener('click',()=>{
+  const t=b.parentElement.innerText.replace(b.innerText,'').trim();
+  navigator.clipboard.writeText(t).then(()=>{b.textContent='Zkopírováno';setTimeout(()=>b.textContent='Kopírovat',1500)});
+}));
+</script>
+</body>
+</html>
