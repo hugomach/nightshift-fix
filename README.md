@@ -1,36 +1,36 @@
 # nightshift-fix
 
-Malý helper na pozadí pro macOS, který opravuje chybu, kdy **Night Shift přestane fungovat po odpojení monitoru nebo po vypnutí obrazovky**. Night Shift pak v nastavení vypadá jako zapnutý, ale obrazovka je zase modrá.
+A tiny macOS background helper that fixes a bug where **Night Shift's warm filter disappears after you disconnect an external monitor or the display goes to sleep**. Night Shift still shows as "on" in Control Center, but the screen has lost its warm tint.
 
-🌐 **Stránka projektu:** https://hugomach.github.io/nightshift-fix/
-
-*English summary at the bottom.*
+🌐 **Project page:** https://hugomach.github.io/nightshift-fix/
 
 ---
 
-## Proč se to děje
+## Why it happens
 
-Když se změní konfigurace displejů (odpojení nebo připojení monitoru, uspání obrazovky, probuzení Macu), WindowServer resetuje barevné (gamma) tabulky displejů. Systémová služba CoreBrightness, která Night Shift řídí, je po této změně někdy nepoužije znovu. Stav „zapnuto“ tedy zůstane, ale filtr zmizí. Proto chybu obvykle vyřeší ruční vypnutí a zapnutí Night Shiftu.
+Whenever the display configuration changes (a monitor is plugged in or unplugged, the screen sleeps, the Mac wakes), WindowServer resets the displays' color (gamma) tables. CoreBrightness, the system service that drives Night Shift, sometimes fails to re-apply its filter afterwards. The "on" state is kept, but the filter is gone. That's why manually toggling Night Shift off and on usually fixes it.
 
-## Co nsfix dělá
+It's most likely to happen when several changes stack up, for example when you unplug a monitor while the display is asleep.
 
-`nsfix` je jeden malý program v Objective‑C (cca 70 řádků), který běží jako LaunchAgent a:
+## What nsfix does
 
-1. poslouchá změny konfigurace displejů (`CGDisplayRegisterReconfigurationCallback`),
-2. poslouchá uspání a probuzení obrazovky i Macu (`NSWorkspace` notifikace),
-3. si **před** změnou zapamatuje, jestli byl Night Shift zapnutý,
-4. **2 sekundy po** změně, pokud byl zapnutý, ho rychle vypne a zapne, aby se filtr znovu použil.
+`nsfix` is a single small Objective‑C program (~70 lines) that runs as a LaunchAgent and:
 
-Night Shift nikdy nezapne, když byl předtím vypnutý, a nijak nemění tvůj plán ani intenzitu.
+1. listens for display reconfiguration (`CGDisplayRegisterReconfigurationCallback`),
+2. listens for screen and system sleep/wake (`NSWorkspace` notifications),
+3. remembers whether Night Shift was on **before** the change,
+4. **2 seconds after** the change, if it was on, quickly toggles it off and on so the filter is applied again.
 
-Využívá privátní třídu `CBBlueLightClient` z `CoreBrightness.framework`, stejnou, kterou používá Ovládací centrum.
+It never turns Night Shift on if it was off, and it doesn't touch your schedule or color temperature.
 
-## Požadavky
+It uses the private `CBBlueLightClient` class from `CoreBrightness.framework`, the same one Control Center uses.
 
-- macOS s Night Shiftem (testováno na macOS 27, Apple Silicon)
-- Xcode Command Line Tools (`xcode-select --install`), kvůli kompilaci
+## Requirements
 
-## Instalace
+- macOS with Night Shift (tested on macOS 27, Apple Silicon)
+- Xcode Command Line Tools (`xcode-select --install`) to compile
+
+## Install
 
 ```bash
 git clone https://github.com/hugomach/nightshift-fix.git
@@ -38,26 +38,30 @@ cd nightshift-fix
 ./install.sh
 ```
 
-Skript zkompiluje helper do `~/.local/nightshift-fix/nsfix`, vytvoří `~/Library/LaunchAgents/com.user.nightshift-fix.plist` a helper spustí. Od té chvíle se pouští automaticky po každém přihlášení.
+The script compiles the helper to `~/.local/nightshift-fix/nsfix`, creates `~/Library/LaunchAgents/com.user.nightshift-fix.plist` and starts it. From then on it starts automatically at every login.
 
-## Ověření, že běží
+## Check that it's running
 
 ```bash
-launchctl list | grep nightshift-fix          # vypíše PID, pokud běží
-tail -f ~/Library/Logs/nsfix.log             # živý log; odpoj/připoj monitor
+launchctl list | grep nightshift-fix   # shows a PID when running
+tail -f ~/Library/Logs/nsfix.log       # live log; unplug/replug a monitor
 ```
 
-Po události uvidíš v logu `nsfix: re-applying Night Shift`.
+Every time it re-applies the filter, the log gets a line `nsfix: re-applying Night Shift`.
 
-## Odinstalace
+### About the log
 
-Ze složky repozitáře:
+The log lives at `~/Library/Logs/nsfix.log` (also visible in **Console.app → Log Reports**). It isn't rotated automatically, but it's tiny: one ~80‑byte line per event, roughly 0.5 MB per year even with frequent use. You can delete it at any time with `rm ~/Library/Logs/nsfix.log`. The helper creates it again on next start.
+
+## Uninstall
+
+From the repo folder:
 
 ```bash
 ./uninstall.sh
 ```
 
-Nebo ručně, bez repozitáře:
+Or manually, without the repo:
 
 ```bash
 launchctl bootout gui/$(id -u)/com.user.nightshift-fix
@@ -65,29 +69,23 @@ rm ~/Library/LaunchAgents/com.user.nightshift-fix.plist
 rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log
 ```
 
-Nic dalšího v systému nezůstane. Nastavení Night Shiftu se nemění.
+Nothing else is left behind, and your Night Shift settings are untouched.
 
-## Soubory
+## Files
 
-| Cesta | Co to je |
+| Path | What it is |
 |---|---|
-| `src/nsfix.m` | zdrojový kód helperu |
-| `install.sh` | kompilace + instalace LaunchAgenta |
-| `uninstall.sh` | kompletní odebrání |
-| `docs/index.html` | stránka projektu (GitHub Pages) |
+| `src/nsfix.m` | helper source code |
+| `install.sh` | compiles and installs the LaunchAgent |
+| `uninstall.sh` | removes everything |
+| `docs/index.html` | project page (GitHub Pages) |
 
-## Řešení problémů
+## Troubleshooting
 
-- **Filtr se pořád ztrácí:** zkontroluj, že helper běží (`launchctl list | grep nightshift-fix`). Pokud monitor potřebuje na probuzení déle, zvyš v `src/nsfix.m` prodlevu `2 * NSEC_PER_SEC` a spusť znovu `./install.sh`.
-- **Krátké problesknutí:** to je záměr. Rychlé vypnutí a zapnutí je právě to, co filtr obnoví.
-- **Po aktualizaci macOS přestane fungovat:** `CBBlueLightClient` je privátní API a Apple ho může změnit. Odinstaluj a nahlas issue.
+- **The filter still disappears:** make sure the helper is running (`launchctl list | grep nightshift-fix`) and check the log. If your monitor takes longer to wake, increase the `2 * NSEC_PER_SEC` delay in `src/nsfix.m` and run `./install.sh` again.
+- **A brief flicker:** that's expected. The quick off/on toggle is what restores the filter.
+- **Stopped working after a macOS update:** `CBBlueLightClient` is a private Apple API and may change. Uninstall and open an issue.
 
----
-
-## English summary
-
-macOS sometimes drops the Night Shift color filter after a display is disconnected or the screen sleeps, while Night Shift still shows as "on". `nsfix` is a tiny LaunchAgent that watches for display reconfiguration and wake events. If Night Shift was on beforehand, it toggles it off and on to re-apply the filter. Install with `./install.sh`, remove with `./uninstall.sh`.
-
-## Licence
+## License
 
 MIT

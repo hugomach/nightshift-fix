@@ -1,5 +1,5 @@
 #!/bin/bash
-# Nainstaluje nsfix: zkompiluje helper a zaregistruje LaunchAgent.
+# Installs nsfix: compiles the helper and registers a LaunchAgent.
 set -euo pipefail
 
 LABEL="com.user.nightshift-fix"
@@ -8,17 +8,17 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 SRC="$(cd "$(dirname "$0")" && pwd)/src/nsfix.m"
 
 if ! command -v clang >/dev/null; then
-  echo "Chybí clang. Nainstaluj Command Line Tools: xcode-select --install" >&2
+  echo "clang not found. Install Command Line Tools: xcode-select --install" >&2
   exit 1
 fi
 
-echo "→ Kompiluji helper…"
+echo "→ Compiling helper…"
 mkdir -p "$DEST"
 cp "$SRC" "$DEST/nsfix.m"
 clang -fobjc-arc -O2 -framework Foundation -framework AppKit -framework CoreGraphics \
   "$DEST/nsfix.m" -o "$DEST/nsfix"
 
-echo "→ Zapisuji LaunchAgent…"
+echo "→ Writing LaunchAgent…"
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -33,8 +33,8 @@ cat > "$PLIST" <<EOF
 </dict></plist>
 EOF
 
-echo "→ Spouštím…"
+echo "→ Starting…"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
-echo "✓ Hotovo. nsfix běží a spustí se automaticky po každém přihlášení."
+echo "✓ Done. nsfix is running and will start automatically at every login."

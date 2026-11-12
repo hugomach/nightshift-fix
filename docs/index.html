@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="cs">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>nightshift-fix</title>
-<meta name="description" content="Oprava macOS chyby, kdy Night Shift zmizí po odpojení monitoru nebo vypnutí obrazovky.">
+<meta name="description" content="Fixes the macOS bug where the Night Shift warm filter disappears after unplugging a monitor or display sleep.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -57,85 +57,90 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;b
 <body>
 <div class="wrap">
 <header>
-  <div class="badge">macOS · LaunchAgent · ~70 řádků</div>
-  <h1>Night Shift, který <em>nezmizí</em></h1>
-  <p class="lead">Odpojíš monitor nebo se vypne obrazovka a Night Shift je pryč. V nastavení svítí „zapnuto“, ale obrazovka je zase modrá. <b>nightshift-fix</b> filtr automaticky vrátí.</p>
+  <div class="badge">macOS · LaunchAgent · ~70 lines</div>
+  <h1>Night Shift that <em>stays on</em></h1>
+  <p class="lead">Unplug a monitor or let the display sleep, and the warm filter is gone. Night Shift still says "on", but the screen has lost its warm tint. <b>nightshift-fix</b> brings it back automatically.</p>
   <div class="btns">
-    <a class="btn primary" href="#instalace">Instalace</a>
+    <a class="btn primary" href="#install">Install</a>
     <a class="btn" href="https://github.com/hugomach/nightshift-fix">GitHub</a>
-    <a class="btn" href="#odinstalace">Odinstalace</a>
+    <a class="btn" href="#uninstall">Uninstall</a>
   </div>
   <div class="screens" aria-hidden="true">
-    <div class="screen s-warm"><span>před odpojením</span></div>
+    <div class="screen s-warm"><span>before unplugging</span></div>
     <div class="arrow">→</div>
-    <div class="screen s-cold"><span>po připojení (chyba)</span></div>
+    <div class="screen s-cold"><span>after (bug): filter gone</span></div>
   </div>
 </header>
 
 <section>
-  <h2>Proč se to děje</h2>
-  <p>Při každé změně konfigurace displejů (odpojení, připojení, uspání obrazovky, probuzení Macu) macOS resetuje barevné gamma tabulky. Služba <code>CoreBrightness</code>, která Night Shift řídí, je pak někdy nepoužije znovu. Stav „zapnuto“ zůstane, ale filtr zmizí. Proto chybu obvykle spraví ruční vypnutí a zapnutí.</p>
+  <h2>Why it happens</h2>
+  <p>Every time the display configuration changes (plugging or unplugging a monitor, screen sleep, system wake), macOS resets the displays' gamma tables. <code>CoreBrightness</code>, the service that drives Night Shift, sometimes fails to re-apply its filter afterwards. The "on" state stays, but the filter is gone. That's why toggling Night Shift off and on by hand usually fixes it.</p>
+  <p>It's most likely when changes stack up, for example when you unplug a monitor while the display is asleep.</p>
 </section>
 
 <section>
-  <h2>Jak to funguje</h2>
+  <h2>How it works</h2>
   <div class="steps">
-    <div class="step"><b>1 · Poslouchá</b>změny displejů a uspání nebo probuzení obrazovky.</div>
-    <div class="step"><b>2 · Pamatuje si</b>jestli byl Night Shift zapnutý ještě <i>před</i> změnou.</div>
-    <div class="step"><b>3 · Počká 2 s</b>než se displeje usadí.</div>
-    <div class="step"><b>4 · Obnoví</b>Night Shift rychlým vypnutím a zapnutím, ale jen když byl předtím zapnutý.</div>
+    <div class="step"><b>1 · Listens</b>for display changes and screen sleep/wake.</div>
+    <div class="step"><b>2 · Remembers</b>whether Night Shift was on <i>before</i> the change.</div>
+    <div class="step"><b>3 · Waits 2 s</b>for the displays to settle.</div>
+    <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if it was on before.</div>
   </div>
-  <p style="margin-top:18px">Neupravuje plán, intenzitu ani jiná nastavení. Používá stejnou systémovou třídu <code>CBBlueLightClient</code> jako Ovládací centrum.</p>
+  <p style="margin-top:18px">It never changes your schedule, color temperature or anything else. It uses the same system class, <code>CBBlueLightClient</code>, as Control Center.</p>
 </section>
 
-<section id="instalace">
-  <h2>Instalace</h2>
-  <p>Potřebuješ Xcode Command Line Tools (<code>xcode-select --install</code>).</p>
-<pre><button class="copy">Kopírovat</button>git clone https://github.com/hugomach/nightshift-fix.git
+<section id="install">
+  <h2>Install</h2>
+  <p>Requires Xcode Command Line Tools (<code>xcode-select --install</code>).</p>
+<pre><button class="copy">Copy</button>git clone https://github.com/hugomach/nightshift-fix.git
 cd nightshift-fix
 ./install.sh</pre>
-  <p>Skript zkompiluje helper do <code>~/.local/nightshift-fix/</code>, zaregistruje LaunchAgent a hned ho spustí. Pak se spouští automaticky po každém přihlášení.</p>
-  <h3>Ověření</h3>
-<pre><button class="copy">Kopírovat</button>launchctl list | grep nightshift-fix          # PID = běží
-tail -f ~/Library/Logs/nsfix.log             # odpoj/připoj monitor</pre>
+  <p>The script compiles the helper into <code>~/.local/nightshift-fix/</code>, registers a LaunchAgent and starts it right away. After that it starts automatically at every login.</p>
+  <h3>Verify</h3>
+<pre><button class="copy">Copy</button>launchctl list | grep nightshift-fix   # PID = running
+tail -f ~/Library/Logs/nsfix.log       # unplug/replug a monitor</pre>
+  <p>Each time the filter is restored, the log gets a line <code>nsfix: re-applying Night Shift</code>.</p>
 </section>
 
-<section id="odinstalace">
-  <h2>Odinstalace</h2>
-  <p>Ze složky repozitáře:</p>
-<pre><button class="copy">Kopírovat</button>./uninstall.sh</pre>
-  <p>Nebo ručně, bez repozitáře:</p>
-<pre><button class="copy">Kopírovat</button>launchctl bootout gui/$(id -u)/com.user.nightshift-fix
+<section id="uninstall">
+  <h2>Uninstall</h2>
+  <p>From the repo folder:</p>
+<pre><button class="copy">Copy</button>./uninstall.sh</pre>
+  <p>Or manually, without the repo:</p>
+<pre><button class="copy">Copy</button>launchctl bootout gui/$(id -u)/com.user.nightshift-fix
 rm ~/Library/LaunchAgents/com.user.nightshift-fix.plist
 rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log</pre>
-  <p class="note">V systému po tom nic nezůstane a nastavení Night Shiftu se nezmění.</p>
+  <p class="note">Nothing is left behind, and your Night Shift settings are untouched.</p>
 </section>
 
 <section>
-  <h2>Co se kam instaluje</h2>
+  <h2>What goes where</h2>
   <table>
-    <tr><td><code>~/.local/nightshift-fix/nsfix</code></td><td>zkompilovaný helper</td></tr>
-    <tr><td><code>~/.local/nightshift-fix/nsfix.m</code></td><td>kopie zdrojáku</td></tr>
-    <tr><td><code>~/Library/LaunchAgents/com.user.nightshift-fix.plist</code></td><td>automatické spuštění po přihlášení</td></tr>
+    <tr><td><code>~/.local/nightshift-fix/nsfix</code></td><td>compiled helper</td></tr>
+    <tr><td><code>~/.local/nightshift-fix/nsfix.m</code></td><td>copy of the source</td></tr>
+    <tr><td><code>~/Library/LaunchAgents/com.user.nightshift-fix.plist</code></td><td>starts the helper at login</td></tr>
+    <tr><td><code>~/Library/Logs/nsfix.log</code></td><td>log file (also in Console.app → Log Reports)</td></tr>
   </table>
 </section>
 
 <section>
-  <h2>Řešení problémů</h2>
-  <h3>Filtr se pořád ztrácí</h3>
-  <p>Zkontroluj, že helper běží. Pokud se monitor probouzí pomalu, zvyš v <code>src/nsfix.m</code> prodlevu <code>2 * NSEC_PER_SEC</code> a spusť znovu <code>./install.sh</code>.</p>
-  <h3>Obrazovka krátce problikne</h3>
-  <p>To je záměr: právě rychlé vypnutí a zapnutí filtr obnoví.</p>
-  <h3>Po aktualizaci macOS to přestalo fungovat</h3>
-  <p><code>CBBlueLightClient</code> je privátní API Applu. Odinstaluj helper a založ issue.</p>
+  <h2>FAQ &amp; troubleshooting</h2>
+  <h3>Does the log grow forever?</h3>
+  <p>It isn't rotated automatically, but it's tiny: one ~80‑byte line per event, roughly 0.5 MB a year even with heavy use. Delete it any time with <code>rm ~/Library/Logs/nsfix.log</code>.</p>
+  <h3>The filter still disappears</h3>
+  <p>Check that the helper is running and look at the log. If your monitor wakes slowly, increase the <code>2 * NSEC_PER_SEC</code> delay in <code>src/nsfix.m</code> and run <code>./install.sh</code> again.</p>
+  <h3>The screen flickers briefly</h3>
+  <p>That's expected. The quick off/on toggle is what restores the filter.</p>
+  <h3>It stopped working after a macOS update</h3>
+  <p><code>CBBlueLightClient</code> is a private Apple API. Uninstall the helper and open an issue.</p>
 </section>
 
-<footer>MIT licence · <a href="https://github.com/hugomach/nightshift-fix">zdrojový kód na GitHubu</a></footer>
+<footer>MIT License · <a href="https://github.com/hugomach/nightshift-fix">source on GitHub</a></footer>
 </div>
 <script>
 document.querySelectorAll('.copy').forEach(b=>b.addEventListener('click',()=>{
   const t=b.parentElement.innerText.replace(b.innerText,'').trim();
-  navigator.clipboard.writeText(t).then(()=>{b.textContent='Zkopírováno';setTimeout(()=>b.textContent='Kopírovat',1500)});
+  navigator.clipboard.writeText(t).then(()=>{b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1500)});
 }));
 </script>
 </body>
