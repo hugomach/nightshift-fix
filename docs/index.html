@@ -97,7 +97,7 @@ cd nightshift-fix
   <p>Skript zkompiluje helper do <code>~/.local/nightshift-fix/</code>, zaregistruje LaunchAgent a hned ho spustí. Pak se spouští automaticky po každém přihlášení.</p>
   <h3>Ověření</h3>
 <pre><button class="copy">Kopírovat</button>launchctl list | grep nightshift-fix          # PID = běží
-log stream --predicate 'process == "nsfix"'   # odpoj/připoj monitor</pre>
+tail -f ~/Library/Logs/nsfix.log             # odpoj/připoj monitor</pre>
 </section>
 
 <section id="odinstalace">
@@ -107,7 +107,7 @@ log stream --predicate 'process == "nsfix"'   # odpoj/připoj monitor</pre>
   <p>Nebo ručně, bez repozitáře:</p>
 <pre><button class="copy">Kopírovat</button>launchctl bootout gui/$(id -u)/com.user.nightshift-fix
 rm ~/Library/LaunchAgents/com.user.nightshift-fix.plist
-rm -rf ~/.local/nightshift-fix</pre>
+rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log</pre>
   <p class="note">V systému po tom nic nezůstane a nastavení Night Shiftu se nezmění.</p>
 </section>
 

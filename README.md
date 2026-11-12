@@ -44,7 +44,7 @@ Skript zkompiluje helper do `~/.local/nightshift-fix/nsfix`, vytvoří `~/Librar
 
 ```bash
 launchctl list | grep nightshift-fix          # vypíše PID, pokud běží
-log stream --predicate 'process == "nsfix"'   # živý log; odpoj/připoj monitor
+tail -f ~/Library/Logs/nsfix.log             # živý log; odpoj/připoj monitor
 ```
 
 Po události uvidíš v logu `nsfix: re-applying Night Shift`.
@@ -62,7 +62,7 @@ Nebo ručně, bez repozitáře:
 ```bash
 launchctl bootout gui/$(id -u)/com.user.nightshift-fix
 rm ~/Library/LaunchAgents/com.user.nightshift-fix.plist
-rm -rf ~/.local/nightshift-fix
+rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log
 ```
 
 Nic dalšího v systému nezůstane. Nastavení Night Shiftu se nemění.

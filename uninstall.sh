@@ -10,5 +10,6 @@ launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 echo "→ Mažu soubory…"
 rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
 rm -rf "$HOME/.local/nightshift-fix"
+rm -f "$HOME/Library/Logs/nsfix.log"
 
 echo "✓ nsfix byl odinstalován. Night Shift funguje dál normálně (jen bez opravy)."
