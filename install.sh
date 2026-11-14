@@ -28,7 +28,7 @@ cat > "$PLIST" <<EOF
   <key>ProgramArguments</key><array><string>$DEST/nsfix</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
+  <key>ProcessType</key><string>Interactive</string>
   <key>StandardErrorPath</key><string>$HOME/Library/Logs/nsfix.log</string>
 </dict></plist>
 EOF

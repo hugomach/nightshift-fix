@@ -14,14 +14,16 @@ It's most likely to happen when several changes stack up, for example when you u
 
 ## What nsfix does
 
-`nsfix` is a single small Objective‑C program (~70 lines) that runs as a LaunchAgent and:
+`nsfix` is a single small Objective‑C program (~130 lines) that runs as a LaunchAgent and:
 
-1. listens for display reconfiguration (`CGDisplayRegisterReconfigurationCallback`),
-2. listens for screen and system sleep/wake (`NSWorkspace` notifications),
-3. remembers whether Night Shift was on **before** the change,
-4. **2 seconds after** the change, if it was on, quickly toggles it off and on so the filter is applied again.
+1. listens for display reconfiguration (`CGDisplayRegisterReconfigurationCallback`, `NSApplicationDidChangeScreenParametersNotification`),
+2. listens for screen and system wake (`NSWorkspace` notifications),
+3. **polls the display list every 10 seconds** as a fallback, because some changes (e.g. unplugging a monitor while the screen is off) don't deliver any event,
+4. after a change, if Night Shift was on, **re-sets the schedule mode** so CoreBrightness re-evaluates sunset/sunrise (or your custom schedule) itself,
+5. if the schedule says Night Shift should be on, quickly toggles it off and on so the filter is applied again,
+6. repeats steps 4–5 at **2, 8 and 20 seconds** after the last event, since displays can take a while to settle.
 
-It never turns Night Shift on if it was off, and it doesn't touch your schedule or color temperature.
+It never turns Night Shift on if you had it off, and it **never turns it on in daylight**: after the Mac sleeps through sunrise, macOS can still report Night Shift as on at wake, so the helper lets the schedule decide instead of forcing it on. It doesn't touch your schedule or color temperature.
 
 It uses the private `CBBlueLightClient` class from `CoreBrightness.framework`, the same one Control Center uses.
 
@@ -47,7 +49,7 @@ launchctl list | grep nightshift-fix   # shows a PID when running
 tail -f ~/Library/Logs/nsfix.log       # live log; unplug/replug a monitor
 ```
 
-Every time it re-applies the filter, the log gets a line `nsfix: re-applying Night Shift`.
+Every time it re-applies the filter, the log gets a line `nsfix: re-applying Night Shift (reason)`. During the day you'll see `nsfix: schedule says off (reason)` instead.
 
 ### About the log
 
@@ -82,7 +84,7 @@ Nothing else is left behind, and your Night Shift settings are untouched.
 
 ## Troubleshooting
 
-- **The filter still disappears:** make sure the helper is running (`launchctl list | grep nightshift-fix`) and check the log. If your monitor takes longer to wake, increase the `2 * NSEC_PER_SEC` delay in `src/nsfix.m` and run `./install.sh` again.
+- **The filter still disappears:** make sure the helper is running (`launchctl list | grep nightshift-fix`) and check the log. If your monitor takes longer to wake, add a longer delay to the `@[@2, @8, @20]` retry list in `src/nsfix.m` and run `./install.sh` again.
 - **A brief flicker:** that's expected. The quick off/on toggle is what restores the filter.
 - **Stopped working after a macOS update:** `CBBlueLightClient` is a private Apple API and may change. Uninstall and open an issue.
 

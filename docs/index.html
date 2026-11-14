@@ -57,7 +57,7 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;b
 <body>
 <div class="wrap">
 <header>
-  <div class="badge">macOS · LaunchAgent · ~70 lines</div>
+  <div class="badge">macOS · LaunchAgent · ~130 lines</div>
   <h1>Night Shift that <em>stays on</em></h1>
   <p class="lead">Unplug a monitor or let the display sleep, and the warm filter is gone. Night Shift still says "on", but the screen has lost its warm tint. <b>nightshift-fix</b> brings it back automatically.</p>
   <div class="btns">
@@ -81,12 +81,12 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;b
 <section>
   <h2>How it works</h2>
   <div class="steps">
-    <div class="step"><b>1 · Listens</b>for display changes and screen sleep/wake.</div>
-    <div class="step"><b>2 · Remembers</b>whether Night Shift was on <i>before</i> the change.</div>
-    <div class="step"><b>3 · Waits 2 s</b>for the displays to settle.</div>
-    <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if it was on before.</div>
+    <div class="step"><b>1 · Listens</b>for display changes and screen sleep/wake, and polls the display list every 10 s in case an event is missed.</div>
+    <div class="step"><b>2 · Remembers</b>whether Night Shift was on around the change.</div>
+    <div class="step"><b>3 · Asks the schedule</b>by re-setting the schedule mode, so macOS decides on/off from sunset/sunrise itself.</div>
+    <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if the schedule says it should be on. Retries at 2, 8 and 20 s.</div>
   </div>
-  <p style="margin-top:18px">It never changes your schedule, color temperature or anything else. It uses the same system class, <code>CBBlueLightClient</code>, as Control Center.</p>
+  <p style="margin-top:18px">It never changes your schedule or color temperature, never turns Night Shift on in daylight, and leaves it off if you turned it off yourself. It uses the same system class, <code>CBBlueLightClient</code>, as Control Center.</p>
 </section>
 
 <section id="install">
@@ -128,7 +128,7 @@ rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log</pre>
   <h3>Does the log grow forever?</h3>
   <p>It isn't rotated automatically, but it's tiny: one ~80‑byte line per event, roughly 0.5 MB a year even with heavy use. Delete it any time with <code>rm ~/Library/Logs/nsfix.log</code>.</p>
   <h3>The filter still disappears</h3>
-  <p>Check that the helper is running and look at the log. If your monitor wakes slowly, increase the <code>2 * NSEC_PER_SEC</code> delay in <code>src/nsfix.m</code> and run <code>./install.sh</code> again.</p>
+  <p>Check that the helper is running and look at the log. If your monitor wakes slowly, add a longer delay to the <code>@[@2, @8, @20]</code> retry list in <code>src/nsfix.m</code> and run <code>./install.sh</code> again.</p>
   <h3>The screen flickers briefly</h3>
   <p>That's expected. The quick off/on toggle is what restores the filter.</p>
   <h3>It stopped working after a macOS update</h3>

@@ -1,3 +1,4 @@
 nsfix
 *.o
+*.bak
 .DS_Store
