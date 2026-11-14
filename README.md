@@ -19,9 +19,10 @@ It's most likely to happen when several changes stack up, for example when you u
 1. listens for display reconfiguration (`CGDisplayRegisterReconfigurationCallback`, `NSApplicationDidChangeScreenParametersNotification`),
 2. listens for screen and system wake (`NSWorkspace` notifications),
 3. **polls the display list every 10 seconds** as a fallback, because some changes (e.g. unplugging a monitor while the screen is off) don't deliver any event,
+   and reacts to steps 1 and 3 **only when the set of displays or their sleep state actually changes** (moving the Dock, changing resolution etc. are ignored, so they don't cause a flicker),
 4. after a change, if Night Shift was on, **re-sets the schedule mode** so CoreBrightness re-evaluates sunset/sunrise (or your custom schedule) itself,
 5. if the schedule says Night Shift should be on, quickly toggles it off and on so the filter is applied again,
-6. repeats steps 4–5 at **2, 8 and 20 seconds** after the last event, since displays can take a while to settle.
+6. repeats steps 4–5 at **3 and 12 seconds** after the last event, since displays can take a while to settle.
 
 It never turns Night Shift on if you had it off, and it **never turns it on in daylight**: after the Mac sleeps through sunrise, macOS can still report Night Shift as on at wake, so the helper lets the schedule decide instead of forcing it on. It doesn't touch your schedule or color temperature.
 
@@ -84,8 +85,8 @@ Nothing else is left behind, and your Night Shift settings are untouched.
 
 ## Troubleshooting
 
-- **The filter still disappears:** make sure the helper is running (`launchctl list | grep nightshift-fix`) and check the log. If your monitor takes longer to wake, add a longer delay to the `@[@2, @8, @20]` retry list in `src/nsfix.m` and run `./install.sh` again.
-- **A brief flicker:** that's expected. The quick off/on toggle is what restores the filter.
+- **The filter still disappears:** make sure the helper is running (`launchctl list | grep nightshift-fix`) and check the log. If your monitor takes longer to wake, add a longer delay to the `@[@3, @12]` retry list in `src/nsfix.m` and run `./install.sh` again.
+- **A brief flicker:** expected once or twice after plugging/unplugging a monitor or waking the Mac. The quick off/on toggle is what restores the filter. If it flickers at other times, check the log: every toggle writes a `re-applying` line. No line means the flicker comes from the monitor itself (try 60 Hz instead of 75 Hz).
 - **Stopped working after a macOS update:** `CBBlueLightClient` is a private Apple API and may change. Uninstall and open an issue.
 
 ## License

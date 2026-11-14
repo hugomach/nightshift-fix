@@ -84,7 +84,7 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;b
     <div class="step"><b>1 · Listens</b>for display changes and screen sleep/wake, and polls the display list every 10 s in case an event is missed.</div>
     <div class="step"><b>2 · Remembers</b>whether Night Shift was on around the change.</div>
     <div class="step"><b>3 · Asks the schedule</b>by re-setting the schedule mode, so macOS decides on/off from sunset/sunrise itself.</div>
-    <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if the schedule says it should be on. Retries at 2, 8 and 20 s.</div>
+    <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if the schedule says it should be on. Retries at 3 and 12 s, and only when the displays actually changed.</div>
   </div>
   <p style="margin-top:18px">It never changes your schedule or color temperature, never turns Night Shift on in daylight, and leaves it off if you turned it off yourself. It uses the same system class, <code>CBBlueLightClient</code>, as Control Center.</p>
 </section>
@@ -128,9 +128,9 @@ rm -rf ~/.local/nightshift-fix ~/Library/Logs/nsfix.log</pre>
   <h3>Does the log grow forever?</h3>
   <p>It isn't rotated automatically, but it's tiny: one ~80‑byte line per event, roughly 0.5 MB a year even with heavy use. Delete it any time with <code>rm ~/Library/Logs/nsfix.log</code>.</p>
   <h3>The filter still disappears</h3>
-  <p>Check that the helper is running and look at the log. If your monitor wakes slowly, add a longer delay to the <code>@[@2, @8, @20]</code> retry list in <code>src/nsfix.m</code> and run <code>./install.sh</code> again.</p>
+  <p>Check that the helper is running and look at the log. If your monitor wakes slowly, add a longer delay to the <code>@[@3, @12]</code> retry list in <code>src/nsfix.m</code> and run <code>./install.sh</code> again.</p>
   <h3>The screen flickers briefly</h3>
-  <p>That's expected. The quick off/on toggle is what restores the filter.</p>
+  <p>Once or twice after plugging/unplugging a monitor or waking the Mac is expected: the quick off/on toggle is what restores the filter. Moving the Dock or changing resolution no longer triggers it. If it flickers at other times without a <code>re-applying</code> line in the log, the cause is the monitor itself (try 60 Hz).</p>
   <h3>It stopped working after a macOS update</h3>
   <p><code>CBBlueLightClient</code> is a private Apple API. Uninstall the helper and open an issue.</p>
 </section>
