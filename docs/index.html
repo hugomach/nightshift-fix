@@ -81,7 +81,7 @@ footer{padding:40px 0 60px;color:var(--muted);font-size:14px;text-align:center;b
 <section>
   <h2>How it works</h2>
   <div class="steps">
-    <div class="step"><b>1 · Listens</b>for display changes and screen sleep/wake, and polls the display list every 10 s in case an event is missed.</div>
+    <div class="step"><b>1 · Listens</b>for monitors being plugged in or unplugged, and polls the display list every 10 s in case an event is missed. Plain sleep/wake is ignored; a change made while the screens were off is handled at the next wake.</div>
     <div class="step"><b>2 · Remembers</b>whether Night Shift was on around the change.</div>
     <div class="step"><b>3 · Asks the schedule</b>by re-setting the schedule mode, so macOS decides on/off from sunset/sunrise itself.</div>
     <div class="step"><b>4 · Restores</b>the filter with a quick off/on toggle, but only if the schedule says it should be on. Retries at 3 and 12 s, and only when the displays actually changed.</div>

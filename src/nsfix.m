@@ -7,6 +7,10 @@
 // v4: only reacts when the set of displays / their sleep state actually changes
 // (Dock moves, resolution changes etc. no longer trigger a flicker) and uses
 // two waves instead of three.
+// v5: sleep/wake alone no longer triggers anything (that flickered on every
+// lid open). Only a change in *which* displays are connected marks the state
+// dirty; the re-apply then runs as soon as a display is awake (immediately,
+// or at the next wake if the change happened while the screens were off).
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -28,7 +32,8 @@ typedef struct {
 static CBBlueLightClient *client;
 static BOOL recentlyEnabled = NO;     // Night Shift was on shortly before the event
 static NSUInteger generation = 0;
-static NSString *lastFingerprint = nil;
+static NSString *lastDisplaySet = nil;   // online display IDs, ignoring sleep state
+static BOOL dirty = NO;                  // display set changed, re-apply still owed
 
 static BOOL isEnabled(void) {
     NSFStatus s; memset(&s, 0, sizeof s);
@@ -36,13 +41,17 @@ static BOOL isEnabled(void) {
     return s.enabled;
 }
 
-// Online displays + whether the main one is asleep: changes on plug/unplug/sleep/wake
-static NSString *displayFingerprint(void) {
+// Online display IDs: changes only on plug/unplug, not on sleep/wake
+static NSString *displaySet(BOOL *anyAwake) {
     CGDirectDisplayID ids[16]; uint32_t n = 0;
     CGGetOnlineDisplayList(16, ids, &n);
     NSMutableString *f = [NSMutableString string];
-    for (uint32_t i = 0; i < n; i++)
-        [f appendFormat:@"%u%s,", ids[i], CGDisplayIsAsleep(ids[i]) ? "z" : ""];
+    BOOL awake = NO;
+    for (uint32_t i = 0; i < n; i++) {
+        [f appendFormat:@"%u,", ids[i]];
+        if (!CGDisplayIsAsleep(ids[i])) awake = YES;
+    }
+    if (anyAwake) *anyAwake = awake;
     return f;
 }
 
@@ -77,7 +86,7 @@ static void reapplyOnce(NSString *why) {
 static void scheduleReapply(NSString *why) {
     if (isEnabled()) recentlyEnabled = YES;
     NSUInteger g = ++generation;
-    // waves: 2 s, 8 s, 20 s after the last event of a burst
+    // waves: 3 s and 12 s after the last event of a burst
     for (NSNumber *sec in @[@3, @12]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, sec.doubleValue * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             if (g != generation) return;            // a newer burst superseded us
@@ -87,12 +96,19 @@ static void scheduleReapply(NSString *why) {
     }
 }
 
-// Re-apply only if the online displays / sleep state really changed
+// Re-apply only after the set of connected displays changed, once a display is awake
 static void reapplyIfDisplaysChanged(NSString *why) {
-    NSString *fp = displayFingerprint();
-    if ([fp isEqualToString:lastFingerprint]) return;
-    lastFingerprint = fp;
-    scheduleReapply([NSString stringWithFormat:@"%@: displays now %@", why, fp]);
+    BOOL awake = NO;
+    NSString *set = displaySet(&awake);
+    if (![set isEqualToString:lastDisplaySet]) {
+        lastDisplaySet = set;
+        dirty = YES;
+        if (isEnabled()) recentlyEnabled = YES;
+    }
+    if (dirty && awake) {
+        dirty = NO;
+        scheduleReapply([NSString stringWithFormat:@"%@: displays now %@", why, set]);
+    }
 }
 
 static void displayCB(CGDirectDisplayID d, CGDisplayChangeSummaryFlags f, void *u) {
@@ -115,20 +131,23 @@ int main(void) {
         for (NSString *n in @[NSWorkspaceScreensDidWakeNotification, NSWorkspaceDidWakeNotification,
                               NSWorkspaceSessionDidBecomeActiveNotification])
             [wc addObserverForName:n object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *x){
-                scheduleReapply(x.name);
+                // a pending change (e.g. unplugged while asleep) is applied once the screen is on
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                    reapplyIfDisplaysChanged(x.name);
+                });
             }];
         [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidChangeScreenParametersNotification
             object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *x){ reapplyIfDisplaysChanged(@"screen params"); }];
 
         // Fallback poll: catches changes whose notifications never arrive (e.g. unplug while screen is off)
-        lastFingerprint = displayFingerprint();
+        lastDisplaySet = displaySet(NULL);
         NSTimer *t = [NSTimer timerWithTimeInterval:10 repeats:YES block:^(NSTimer *tm){
             reapplyIfDisplaysChanged(@"poll");
         }];
         t.tolerance = 1;
         [[NSRunLoop mainRunLoop] addTimer:t forMode:NSRunLoopCommonModes];
 
-        NSLog(@"nsfix v4: running (displays %@)", lastFingerprint);
+        NSLog(@"nsfix v5: running (displays %@)", lastDisplaySet);
         [NSApp run];
     }
     return 0;
