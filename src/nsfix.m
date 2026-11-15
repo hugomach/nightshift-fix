@@ -11,6 +11,9 @@
 // lid open). Only a change in *which* displays are connected marks the state
 // dirty; the re-apply then runs as soon as a display is awake (immediately,
 // or at the next wake if the change happened while the screens were off).
+// v6: a single off/on toggle (5 s after the last event) instead of two waves,
+// and it also runs when an *external* monitor wakes up. Waking only the
+// built-in display (e.g. opening the lid with nothing attached) does nothing.
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -33,6 +36,7 @@ static CBBlueLightClient *client;
 static BOOL recentlyEnabled = NO;     // Night Shift was on shortly before the event
 static NSUInteger generation = 0;
 static NSString *lastDisplaySet = nil;   // online display IDs, ignoring sleep state
+static BOOL lastExternalAwake = NO;     // was an external display awake at the last check
 static BOOL dirty = NO;                  // display set changed, re-apply still owed
 
 static BOOL isEnabled(void) {
@@ -42,16 +46,20 @@ static BOOL isEnabled(void) {
 }
 
 // Online display IDs: changes only on plug/unplug, not on sleep/wake
-static NSString *displaySet(BOOL *anyAwake) {
+static NSString *displaySet(BOOL *anyAwake, BOOL *externalAwake) {
     CGDirectDisplayID ids[16]; uint32_t n = 0;
     CGGetOnlineDisplayList(16, ids, &n);
     NSMutableString *f = [NSMutableString string];
-    BOOL awake = NO;
+    BOOL awake = NO, extAwake = NO;
     for (uint32_t i = 0; i < n; i++) {
         [f appendFormat:@"%u,", ids[i]];
-        if (!CGDisplayIsAsleep(ids[i])) awake = YES;
+        if (!CGDisplayIsAsleep(ids[i])) {
+            awake = YES;
+            if (!CGDisplayIsBuiltin(ids[i])) extAwake = YES;
+        }
     }
     if (anyAwake) *anyAwake = awake;
+    if (externalAwake) *externalAwake = extAwake;
     return f;
 }
 
@@ -86,25 +94,28 @@ static void reapplyOnce(NSString *why) {
 static void scheduleReapply(NSString *why) {
     if (isEnabled()) recentlyEnabled = YES;
     NSUInteger g = ++generation;
-    // waves: 3 s and 12 s after the last event of a burst
-    for (NSNumber *sec in @[@3, @12]) {
+    // one toggle, 5 s after the last event of a burst (displays need a moment to settle)
+    for (NSNumber *sec in @[@5]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, sec.doubleValue * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             if (g != generation) return;            // a newer burst superseded us
             reapplyOnce([NSString stringWithFormat:@"%@ +%@s", why, sec]);
-            if (sec.intValue == 12) recentlyEnabled = NO;
+            recentlyEnabled = NO;
         });
     }
 }
 
-// Re-apply only after the set of connected displays changed, once a display is awake
+// Re-apply after a monitor was plugged/unplugged or an external monitor woke up,
+// once a display is awake
 static void reapplyIfDisplaysChanged(NSString *why) {
-    BOOL awake = NO;
-    NSString *set = displaySet(&awake);
+    BOOL awake = NO, extAwake = NO;
+    NSString *set = displaySet(&awake, &extAwake);
     if (![set isEqualToString:lastDisplaySet]) {
         lastDisplaySet = set;
         dirty = YES;
         if (isEnabled()) recentlyEnabled = YES;
     }
+    if (extAwake && !lastExternalAwake) dirty = YES;   // external monitor came back on
+    lastExternalAwake = extAwake;
     if (dirty && awake) {
         dirty = NO;
         scheduleReapply([NSString stringWithFormat:@"%@: displays now %@", why, set]);
@@ -140,14 +151,14 @@ int main(void) {
             object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *x){ reapplyIfDisplaysChanged(@"screen params"); }];
 
         // Fallback poll: catches changes whose notifications never arrive (e.g. unplug while screen is off)
-        lastDisplaySet = displaySet(NULL);
+        lastDisplaySet = displaySet(NULL, &lastExternalAwake);
         NSTimer *t = [NSTimer timerWithTimeInterval:10 repeats:YES block:^(NSTimer *tm){
             reapplyIfDisplaysChanged(@"poll");
         }];
         t.tolerance = 1;
         [[NSRunLoop mainRunLoop] addTimer:t forMode:NSRunLoopCommonModes];
 
-        NSLog(@"nsfix v5: running (displays %@)", lastDisplaySet);
+        NSLog(@"nsfix v6: running (displays %@)", lastDisplaySet);
         [NSApp run];
     }
     return 0;
